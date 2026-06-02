@@ -2,6 +2,7 @@ import path from "node:path";
 import { Kysely, PostgresDialect } from "kysely";
 import type { ColumnType, Generated } from "kysely";
 import { Pool } from "pg";
+import Postgrator from "postgrator";
 
 // Hand-written schema; keep in sync with the SQL migrations by hand
 export interface Database {
@@ -21,10 +22,9 @@ export const db = new Kysely<Database>({
 });
 
 export async function migrateToLatest(): Promise<void> {
-  const { default: Postgrator } = await import("postgrator");
   const postgrator = new Postgrator({
     driver: "pg",
-    migrationPattern: path.join(__dirname, "migrations", "*"),
+    migrationPattern: path.join(import.meta.dirname, "migrations", "*"),
     execQuery: (query) => pool.query(query),
   });
   const applied = await postgrator.migrate();

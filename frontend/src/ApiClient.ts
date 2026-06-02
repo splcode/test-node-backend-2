@@ -127,7 +127,7 @@ export default class ApiClient extends EventTarget {
   async request<T = unknown>(
     method: HttpMethod,
     ...args: RequestArg[]
-  ): Promise<T> {
+  ): Promise<T | undefined> {
     const requestData: RequestData = { ...this.defaultRequestData };
 
     // A trailing plain object (not a URL) is request data, not a path segment.
@@ -188,33 +188,33 @@ export default class ApiClient extends EventTarget {
 
     // No content to parse.
     if (res.status === 202 || res.status === 204 || method === "HEAD") {
-      return undefined as T;
+      return undefined;
     }
 
     const text = await res.text();
-    if (!text.trim()) return undefined as T;
+    if (!text.trim()) return undefined;
 
     return shouldParseJson(res, text)
       ? parseJSONWithDates<T>(text)
       : (text as T);
   }
 
-  get<T = unknown>(...args: RequestArg[]): Promise<T> {
+  get<T = unknown>(...args: RequestArg[]): Promise<T | undefined> {
     return this.request<T>("GET", ...args);
   }
-  head<T = unknown>(...args: RequestArg[]): Promise<T> {
+  head<T = unknown>(...args: RequestArg[]): Promise<T | undefined> {
     return this.request<T>("HEAD", ...args);
   }
-  post<T = unknown>(...args: RequestArg[]): Promise<T> {
+  post<T = unknown>(...args: RequestArg[]): Promise<T | undefined> {
     return this.request<T>("POST", ...args);
   }
-  put<T = unknown>(...args: RequestArg[]): Promise<T> {
+  put<T = unknown>(...args: RequestArg[]): Promise<T | undefined> {
     return this.request<T>("PUT", ...args);
   }
-  patch<T = unknown>(...args: RequestArg[]): Promise<T> {
+  patch<T = unknown>(...args: RequestArg[]): Promise<T | undefined> {
     return this.request<T>("PATCH", ...args);
   }
-  delete<T = unknown>(...args: RequestArg[]): Promise<T> {
+  delete<T = unknown>(...args: RequestArg[]): Promise<T | undefined> {
     return this.request<T>("DELETE", ...args);
   }
 }
