@@ -23,7 +23,8 @@ app.get("/api/v1/sample", async (_req, res) => {
       name: row.name,
       description: row.description,
       bunnyCount: row.bunny_count,
-      createdAt: row.created_at.toISOString(),
+      // Hold the Date; res.json() serializes it to an ISO-8601 string on the wire.
+      createdAt: row.created_at,
     })),
   };
   res.json(body);

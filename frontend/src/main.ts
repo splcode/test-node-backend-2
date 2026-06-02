@@ -1,8 +1,8 @@
 import "@picocss/pico/css/pico.min.css";
+import { api } from "./api";
 import type { SampleListResponse } from "@contracts";
 
-const res = await fetch("/api/v1/sample");
-const { data } = (await res.json()) as SampleListResponse;
+const { data } = await api.get<SampleListResponse>("sample");
 
 const app = document.querySelector("#app")!;
 app.replaceChildren(
@@ -12,7 +12,10 @@ app.replaceChildren(
     h3.textContent = sample.name;
     const p = document.createElement("p");
     p.textContent = sample.description;
-    article.append(h3, p);
+    const footer = document.createElement("footer");
+    // createdAt is a real Date here, revived by the client.
+    footer.textContent = `Added ${sample.createdAt.toLocaleString()}`;
+    article.append(h3, p, footer);
     return article;
   }),
 );

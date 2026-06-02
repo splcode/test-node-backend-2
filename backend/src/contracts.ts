@@ -1,13 +1,11 @@
-// API types shared with the frontend (the frontend `import type`s these).
-
 export interface Sample {
   id: number;
   name: string;
   description: string;
   /** Number of bunnies mentally associated with this sample; null if none. */
   bunnyCount: number | null;
-  /** ISO-8601 timestamp string. */
-  createdAt: string;
+  /** ISO-8601 on the wire; the API client revives it to a Date on receipt. */
+  createdAt: Date;
 }
 
 export interface SampleListResponse {
