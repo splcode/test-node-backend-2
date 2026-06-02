@@ -32,7 +32,7 @@ COPY --from=build /app/frontend/dist ./frontend/dist
 EXPOSE 3000
 USER node
 
-# Coolify also runs its own health check; this one is for Docker itself.
+# Container-level health check for Docker / orchestrators.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 

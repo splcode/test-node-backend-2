@@ -1,8 +1,4 @@
-# LOCAL DEVELOPMENT ONLY. Not used by Coolify (Coolify provisions its own Postgres).
-# Spins up Postgres so you can do postgres-first development locally:
-#   docker compose up -d
-#   npm run db:migrate
-#   DATA_SOURCE=postgres npm run dev   (or set it in .env)
+# LOCAL DEVELOPMENT ONLY
 services:
   postgres:
     image: postgres:16
@@ -11,7 +7,6 @@ services:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: app
       POSTGRES_DB: app
-    # Host port 5433 (5432 is often already taken by a local Postgres).
     ports:
       - "5433:5432"
     volumes:
