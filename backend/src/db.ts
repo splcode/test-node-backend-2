@@ -9,6 +9,7 @@ export interface Database {
     id: Generated<number>;
     name: string;
     description: string;
+    bunny_count: number | null;
     created_at: ColumnType<Date, string | undefined, never>;
   };
 }

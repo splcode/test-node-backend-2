@@ -14,7 +14,7 @@ app.get("/api/health", (_req, res) => {
 app.get("/api/v1/sample", async (_req, res) => {
   const rows = await db
     .selectFrom("sample")
-    .select(["id", "name", "description", "created_at"])
+    .select(["id", "name", "description", "bunny_count", "created_at"])
     .orderBy("id")
     .execute();
   const body: SampleListResponse = {
@@ -22,6 +22,7 @@ app.get("/api/v1/sample", async (_req, res) => {
       id: row.id,
       name: row.name,
       description: row.description,
+      bunnyCount: row.bunny_count,
       createdAt: row.created_at.toISOString(),
     })),
   };
