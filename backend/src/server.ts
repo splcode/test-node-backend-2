@@ -29,7 +29,20 @@ app.get("/api/v1/sample", async (_req, res) => {
 });
 
 // Serve the built frontend (present in the production image).
-app.use(express.static(path.resolve(__dirname, "../../frontend/dist")));
+app.use(
+  express.static(path.resolve(__dirname, "../../frontend/dist"), {
+    setHeaders: (res, filePath) => {
+      // Vite-hashed asset filenames are content-addressed -> cache forever.
+      // Everything else (index.html, favicon) -> always revalidate.
+      res.setHeader(
+        "Cache-Control",
+        filePath.includes(`${path.sep}assets${path.sep}`)
+          ? "public, max-age=31536000, immutable"
+          : "no-cache",
+      );
+    },
+  }),
+);
 
 async function start(): Promise<void> {
   await migrateToLatest();

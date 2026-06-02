@@ -48,6 +48,9 @@ docker run --rm -p 3000:3000 -e DATABASE_URL=postgres://user:pass@host:5432/db c
 The image serves the API and the static frontend on port 3000 and runs pending
 migrations on startup.
 
+Vite-hashed assets under `/assets/*` are served `immutable` (cached forever);
+`index.html` is served `no-cache` so a new deploy is picked up immediately.
+
 ## Coolify settings
 
 1. **New Resource → Application → your Git repo.**
