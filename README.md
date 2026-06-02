@@ -6,22 +6,28 @@ Express + Vite hello-world, built as a **single container** and deployed on **Co
   frontend from one process on one port.
 - **Frontend:** vanilla TypeScript + Vite + [Pico.css](https://picocss.com/).
   Fetches `/api/v1/sample` and renders the list.
-- **Database:** [Kysely](https://kysely.dev/) + Postgres. Reads samples from the
-  database and **auto-migrates on startup**, so a fresh database is created and
-  seeded the first time the app boots.
+- **Database:** Postgres. [Kysely](https://kysely.dev/) is the query builder for
+  the API; plain-SQL migrations are run by [postgrator](https://github.com/rickbergfalk/postgrator)
+  and **auto-applied on startup** (Flyway-style), so a fresh database is created
+  and seeded the first time the app boots.
 
 ## Layout
 
 ```
 backend/src/
   server.ts          Express API + static file serving + migrate-on-boot
-  db.ts              Kysely instance, schema types, migrateToLatest()
+  db.ts              Kysely instance, schema types, postgrator migrateToLatest()
   contracts.ts       API types shared with the frontend (type-only)
-  migrations/        Kysely migrations (0001_create_sample.ts)
+  migrations/        plain-SQL migrations (001.do.create-sample.sql)
 frontend/            Vite + vanilla TS + Pico
 Dockerfile           multi-stage build -> slim runtime (used by Coolify)
 docker-compose.yml   LOCAL-ONLY Postgres for development
 ```
+
+Migrations are versioned `NNN.do.<description>.sql` files, applied in order and
+tracked in a `schemaversion` table. postgrator stores an md5 of each applied
+migration and refuses to start if a migration is edited after it was applied
+(forward-only — add a new migration to change the schema, don't edit old ones).
 
 ## Local development
 
@@ -35,8 +41,11 @@ npm run dev            # Vite (http://localhost:5173) + Express (http://localhos
 Open http://localhost:5173 — Vite proxies `/api/*` to Express, so there is no CORS.
 On first boot the app creates and seeds the `sample` table automatically.
 
-When the schema changes: add a migration in `backend/src/migrations/`, update the
-`Database` interface in `backend/src/db.ts` to match, and restart.
+When the schema changes: add the next `NNN.do.<description>.sql` file in
+`backend/src/migrations/`, update the `Database` interface in `backend/src/db.ts`
+to match (it is hand-maintained — raw SQL does not generate TS types), and
+restart. Wrap multi-statement migrations in `BEGIN; … COMMIT;` so they apply
+atomically (postgrator does not wrap them for you).
 
 ## Production build (what Coolify runs)
 

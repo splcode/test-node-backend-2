@@ -1,11 +1,9 @@
 import path from "node:path";
-import { promises as fs } from "node:fs";
 import { Kysely, PostgresDialect } from "kysely";
-import { Migrator, FileMigrationProvider } from "kysely/migration";
 import type { ColumnType, Generated } from "kysely";
 import { Pool } from "pg";
 
-/** Hand-written schema — keep in sync with the migrations by hand. */
+/** Hand-written schema — keep in sync with the SQL migrations by hand. */
 export interface Database {
   sample: {
     id: Generated<number>;
@@ -15,25 +13,27 @@ export interface Database {
   };
 }
 
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
 export const db = new Kysely<Database>({
-  dialect: new PostgresDialect({
-    pool: new Pool({ connectionString: process.env.DATABASE_URL }),
-  }),
+  dialect: new PostgresDialect({ pool }),
 });
 
-/** Apply pending migrations. Safe to call on every boot. */
+/**
+ * Apply pending SQL migrations on boot (Flyway-style) via postgrator.
+ * Reads migrations/*.sql, tracks them in a `schemaversion` table, and
+ * validates md5 checksums so an edited-after-apply migration is caught.
+ */
 export async function migrateToLatest(): Promise<void> {
-  const migrator = new Migrator({
-    db,
-    provider: new FileMigrationProvider({
-      fs,
-      path,
-      migrationFolder: path.join(__dirname, "migrations"),
-    }),
+  // postgrator 8 is ESM-only; dynamic import keeps this CommonJS module happy.
+  const { default: Postgrator } = await import("postgrator");
+  const postgrator = new Postgrator({
+    driver: "pg",
+    migrationPattern: path.join(__dirname, "migrations", "*"),
+    execQuery: (query) => pool.query(query),
   });
-  const { error, results } = await migrator.migrateToLatest();
-  for (const r of results ?? []) {
-    console.log(`migration ${r.migrationName}: ${r.status}`);
+  const applied = await postgrator.migrate();
+  for (const m of applied) {
+    console.log(`migration ${m.version} ${m.action} ${m.name}`);
   }
-  if (error) throw error;
 }
