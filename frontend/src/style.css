@@ -1,4 +1,0 @@
-/* Pico handles the reset + base styling; just a couple of tweaks here. */
-#app article small {
-  color: var(--pico-muted-color);
-}

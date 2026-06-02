@@ -15,9 +15,7 @@
     "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend",
     "start": "npm run start -w backend",
     "db:up": "docker compose up -d",
-    "db:down": "docker compose down",
-    "db:migrate": "npm run migrate -w backend",
-    "db:migrate:down": "npm run migrate:down -w backend"
+    "db:down": "docker compose down"
   },
   "devDependencies": {
     "concurrently": "^10.0.1"
