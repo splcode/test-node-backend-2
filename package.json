@@ -1,0 +1,25 @@
+{
+  "name": "coolify-hello",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Express + Vite hello-world, single container, deployed on Coolify",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "npm run dev -w backend",
+    "dev:web": "npm run dev -w frontend",
+    "build": "npm run build -w backend && npm run build -w frontend",
+    "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend",
+    "start": "npm run start -w backend",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "npm run migrate -w backend",
+    "db:migrate:down": "npm run migrate:down -w backend"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.1"
+  }
+}
