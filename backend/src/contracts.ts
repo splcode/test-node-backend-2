@@ -31,7 +31,11 @@ export interface SessionUser {
   organizations: OrgMemberships;
 }
 
-/** GET /api/v1/me — the current user, or null when there is no session. */
+/** GET /api/v1/me — the current principal, however they authenticated. */
 export interface MeResponse {
   user: SessionUser | null;
+  /** How the caller authenticated: a browser session or a bearer token. */
+  via?: "session" | "bearer";
+  /** For bearer auth, the client the token was issued to (azp / client_id). */
+  client?: string;
 }

@@ -5,6 +5,7 @@ import { sessionMiddleware } from "./auth/session.js";
 import { authRouter } from "./auth/routes.js";
 import { requireSessionOrBearer } from "./auth/bearer.js";
 import { issueCsrfToken, requireCsrf } from "./auth/csrf.js";
+import { mapClaimsToUser } from "./auth/oidc.js";
 import type { SampleListResponse, MeResponse } from "./contracts.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -38,7 +39,19 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/v1", requireSessionOrBearer);
 
 app.get("/api/v1/me", (req, res) => {
-  const body: MeResponse = { user: req.session.user ?? null };
+  // The guard admits either a browser session or a bearer token, so surface
+  // whichever authenticated — not just the session. For a bearer token the access
+  // token already carries identity/orgs/realm roles (incl. a confidential client's
+  // service-account user), so reuse the same claims mapper.
+  let body: MeResponse;
+  if (req.session.user) {
+    body = { user: req.session.user, via: "session" };
+  } else if (req.bearer) {
+    const claims = req.bearer.claims as Record<string, unknown>;
+    body = { user: mapClaimsToUser(claims, claims), via: "bearer", client: req.bearer.clientId };
+  } else {
+    body = { user: null };
+  }
   res.json(body);
 });
 
