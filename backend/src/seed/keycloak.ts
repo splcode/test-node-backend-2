@@ -10,6 +10,8 @@
  *     resource-server (jose) audience check has something to verify
  *   - client `web-bff` — confidential, auth-code + PKCE, the browser BFF
  *   - client `api-m2m` — confidential, service account, for client-credentials
+ *   - client `dev-tools` — public, auth-code + PKCE (+ direct grant), for hand-
+ *     testing tokens from Postman / Insomnia / curl (no secret)
  *   - realm role `app-admin` — the only realm role; being authenticated already
  *     means you're a user. It rides for free in the standard `realm_access.roles`
  *     (Keycloak's default `roles` scope), no custom mapper. Both `demo` and the
@@ -41,6 +43,8 @@ const WEB_CLIENT_SECRET = process.env.OIDC_CLIENT_SECRET ?? "dev-secret-change-m
 const M2M_CLIENT_ID = "api-m2m";
 const M2M_CLIENT_SECRET = process.env.M2M_CLIENT_SECRET ?? "dev-m2m-secret";
 const API_AUDIENCE = process.env.OIDC_AUDIENCE ?? "app-api";
+// Public client for hand-testing the auth-code flow from Postman / Insomnia / curl.
+const TOOLS_CLIENT_ID = "dev-tools";
 
 const DEMO_USER = "demo";
 const DEMO_PASS = "demo";
@@ -398,6 +402,28 @@ async function main(): Promise<void> {
     webOrigins: [],
   });
   await assignDefaultScope(m2mId, apiScopeId);
+
+  // Public client for API testing tools (Postman / Insomnia / curl). No secret —
+  // authorization-code + PKCE. Direct (password) grant is also on for a quick
+  // token without the browser hop. Redirect URIs cover the tools' callbacks.
+  const toolsId = await ensureClient({
+    clientId: TOOLS_CLIENT_ID,
+    name: "Dev tools (Postman/Insomnia, auth-code + PKCE)",
+    protocol: "openid-connect",
+    publicClient: true,
+    standardFlowEnabled: true,
+    directAccessGrantsEnabled: true,
+    serviceAccountsEnabled: false,
+    redirectUris: [
+      "https://oauth.pstmn.io/v1/callback", 
+      "http://localhost:8080/callback", 
+      "http://localhost:3000/callback",
+    ],
+    webOrigins: ["+"],
+    attributes: { "pkce.code.challenge.method": "S256" },
+  });
+  await assignDefaultScope(toolsId, orgScopeId);
+  await assignDefaultScope(toolsId, apiScopeId);
 
   // Only one realm role: `app-admin`. Both the demo user and the m2m service
   // account hold it, so each token carries realm_access.roles.
