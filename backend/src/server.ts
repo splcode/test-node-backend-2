@@ -3,7 +3,7 @@ import express from "express";
 import { db, migrateToLatest } from "./db.js";
 import { sessionMiddleware } from "./auth/session.js";
 import { authRouter } from "./auth/routes.js";
-import { requireSession } from "./auth/guards.js";
+import { requireSessionOrBearer } from "./auth/bearer.js";
 import { issueCsrfToken, requireCsrf } from "./auth/csrf.js";
 import type { SampleListResponse, MeResponse } from "./contracts.js";
 
@@ -33,9 +33,9 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-// Everything under /api/v1 is browser-facing and requires a session. (Machine
-// clients get a bearer guard in step 3; this becomes "session OR bearer" then.)
-app.use("/api/v1", requireSession);
+// Everything under /api/v1 requires a browser session OR a valid bearer token
+// (machine clients). The guard sets req.session.user or req.bearer accordingly.
+app.use("/api/v1", requireSessionOrBearer);
 
 app.get("/api/v1/me", (req, res) => {
   const body: MeResponse = { user: req.session.user ?? null };

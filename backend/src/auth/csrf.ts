@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
+import { hasBearer } from "./bearer.js";
 
 /**
  * Double-submit CSRF, the Angular/Axios/Spring-style convention: a readable
@@ -64,7 +65,10 @@ export function issueCsrfToken(req: Request, res: Response, next: NextFunction):
 
 /** Reject state-changing requests whose header token doesn't match the session. */
 export function requireCsrf(req: Request, res: Response, next: NextFunction): void {
-  if (SAFE_METHODS.has(req.method)) {
+  // Bearer-authenticated requests aren't subject to CSRF: the credential is not
+  // ambient (the browser never attaches it automatically), and a cross-site page
+  // can't set an Authorization header without a CORS preflight we don't grant.
+  if (SAFE_METHODS.has(req.method) || hasBearer(req)) {
     next();
     return;
   }

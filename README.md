@@ -73,8 +73,24 @@ Once seeded, the server exposes the browser login flow:
 - `GET /api/v1/me` → the current session user; everything under `/api/v1` now
   requires a session
 
-The frontend drives this: it calls `/api/v1/me`, shows a **Log in** button when
-logged out and the user + their org roles + a **Log out** button when signed in.
+**Machine clients** skip the browser flow entirely: fetch a token with the
+client-credentials grant from `api-m2m`, then call the API with
+`Authorization: Bearer <token>`. The same `/api/v1` routes accept **either** a
+browser session **or** a bearer token — validated with
+[`jose`](https://github.com/panva/jose) against the issuer's JWKS (signature +
+issuer + `app-api` audience). Bearer requests carry their own credential, so
+they're exempt from the CSRF check.
+
+```bash
+TOKEN=$(curl -s -X POST "$OIDC_ISSUER/protocol/openid-connect/token" \
+  -d grant_type=client_credentials -d client_id=api-m2m -d client_secret=dev-m2m-secret \
+  | jq -r .access_token)
+curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/v1/sample
+```
+
+The frontend drives the browser side: it calls `/api/v1/me`, shows a **Log in**
+button when logged out and the user + their org roles + a **Log out** button when
+signed in.
 In dev the browser stays on the Vite origin (`:5173`) the whole time — Vite
 proxies `/auth/*` to Express and the seeded `web-bff` client allows the `:5173`
 callback, so the cookie-based flow works with HMR. (`OIDC_REDIRECT_URI` selects
