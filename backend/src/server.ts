@@ -2,6 +2,8 @@ import path from "node:path";
 import express from "express";
 import { db, migrateToLatest } from "./db.js";
 import { sessionMiddleware } from "./auth/session.js";
+import { authRouter } from "./auth/routes.js";
+import { requireSession } from "./auth/guards.js";
 import type { SampleListResponse } from "./contracts.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -18,8 +20,19 @@ if (process.env.NODE_ENV === "production") {
 // static asset requests never touch the session machinery or the store.
 app.use(["/api", "/auth"], sessionMiddleware);
 
+// Browser auth: /auth/login, /auth/callback, POST /auth/logout.
+app.use("/auth", authRouter);
+
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
+});
+
+// Everything under /api/v1 is browser-facing and requires a session. (Machine
+// clients get a bearer guard in step 3; this becomes "session OR bearer" then.)
+app.use("/api/v1", requireSession);
+
+app.get("/api/v1/me", (req, res) => {
+  res.json({ user: req.session.user });
 });
 
 app.get("/api/v1/sample", async (_req, res) => {

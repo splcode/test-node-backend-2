@@ -29,5 +29,11 @@ declare module "express-session" {
      * are standard OIDC; returnTo is where to send the browser post-login.
      */
     oidc?: { state: string; nonce: string; codeVerifier: string; returnTo?: string };
+    /**
+     * ID token kept solely as the `id_token_hint` for RP-initiated logout. We do
+     * not yet persist the access/refresh tokens — the BFF doesn't call resource
+     * servers on the user's behalf yet; add them here when it needs to.
+     */
+    idToken?: string;
   }
 }

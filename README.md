@@ -62,6 +62,20 @@ idempotent and prints the exact `.env` values to use. It provisions:
 - user **`demo` / `demo`**, a member of two orgs with different roles
   (`acme`: org admin, `globex`: read-only)
 
+Once seeded, the server exposes the browser login flow:
+
+- `GET /auth/login` → redirects to Keycloak (authorization-code + PKCE)
+- `GET /auth/callback` → exchanges the code, maps the `organizations` claim into
+  the session, redirects home
+- `POST /auth/logout` → destroys the session and returns the Keycloak
+  end-session URL for the SPA to navigate to (POST-only, so no cross-site GET)
+- `GET /api/v1/me` → the current session user; everything under `/api/v1` now
+  requires a session
+
+Browsers reach Keycloak over plain `http` in dev, which openid-client normally
+forbids; the http-only relaxation is applied **only** when `OIDC_ISSUER` is
+`http:` (prod issuers are `https` and stay strict).
+
 The dev Keycloak uses an embedded H2 database persisted in the `kcdata` volume;
 production points at a hosted Phase Two via `KEYCLOAK_VERSION` / `OIDC_*` env.
 
