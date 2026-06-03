@@ -26,6 +26,8 @@ export interface SessionUser {
   sub: string;
   email?: string;
   name?: string;
+  /** Realm-level roles (e.g. `app-admin`, `app-user`); Keycloak built-ins filtered out. */
+  realmRoles: string[];
   organizations: OrgMemberships;
 }
 

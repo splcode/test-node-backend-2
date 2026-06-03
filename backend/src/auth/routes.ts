@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { Request } from "express";
 import * as client from "openid-client";
+import { decodeJwt } from "jose";
 import {
   getOidcConfig,
   mapClaimsToUser,
@@ -89,7 +90,11 @@ authRouter.get("/callback", async (req, res, next) => {
       return;
     }
 
-    const user = mapClaimsToUser(claims as Record<string, unknown>);
+    // Realm roles live in the access token, not the ID token (Keycloak default).
+    // The BFF holds the access token, so decode it for those claims. No signature
+    // check needed — it came straight from the token endpoint we just called.
+    const accessClaims = decodeJwt(tokens.access_token);
+    const user = mapClaimsToUser(claims as Record<string, unknown>, accessClaims as Record<string, unknown>);
     const idToken = tokens.id_token;
     const returnTo = safeReturnTo(tx.returnTo);
 

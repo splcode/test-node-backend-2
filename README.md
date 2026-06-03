@@ -57,11 +57,21 @@ The seeder ([`backend/src/seed/keycloak.ts`](backend/src/seed/keycloak.ts)) is
 idempotent and prints the exact `.env` values to use. It provisions:
 
 - `web-bff` — confidential client, authorization-code + PKCE (browser login)
-- `api-m2m` — confidential client, client-credentials (machine API clients)
+- `api-m2m` — confidential client, client-credentials (machine API clients);
+  its service account holds the `app-admin` realm role
 - client scopes that add an `organizations` claim (per-org roles) and stamp the
   API `aud` onto access tokens
-- user **`demo` / `demo`**, a member of two orgs with different roles
-  (`acme`: org admin, `globex`: read-only)
+- realm role `app-admin` (the only one — being authenticated already means
+  you're a user), and `admin` / `manager` roles in each org
+- user **`demo` / `demo`**: realm `app-admin`, **acme** → `admin`,
+  **globex** → `manager`
+
+Two role dimensions flow into the app, each from its native place in the token:
+**org roles** ride the `organizations` claim (ID + access token), and
+**realm roles** ride the standard `realm_access.roles` (access token only —
+Keycloak's default `roles` scope, no custom mapper). The BFF reads realm roles
+off the access token it holds; a bearer client gets them straight from its
+verified token — the same claim a Spring resource server reads.
 
 Once seeded, the server exposes the browser login flow:
 

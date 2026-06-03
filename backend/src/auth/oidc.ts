@@ -51,13 +51,37 @@ interface OrgClaim {
   [orgId: string]: { name?: string; roles?: string[] };
 }
 
+// Keycloak ships these realm roles to everyone; drop them so `realmRoles` shows
+// only our app's roles. `default-roles-<realm>` is the per-realm composite role.
+const BUILTIN_REALM_ROLES = new Set(["offline_access", "uma_authorization"]);
+function isAppRealmRole(role: string): boolean {
+  return !BUILTIN_REALM_ROLES.has(role) && !role.startsWith("default-roles-");
+}
+
 /**
- * Map verified ID-token claims into the principal we persist in the session.
- * Defensive about claim shapes — a malformed `organizations` entry degrades to
- * empty roles rather than throwing inside the callback.
+ * Pull realm roles out of the standard `realm_access.roles` claim (filtered to
+ * our app's roles). This lives in the ACCESS token, not the ID token — same place
+ * a Keycloak-aware Spring resource server reads them. Shared by the session and
+ * bearer paths so both surface realm roles identically.
  */
-export function mapClaimsToUser(claims: Record<string, unknown>): SessionUser {
-  const orgs = (claims.organizations ?? {}) as OrgClaim;
+export function extractRealmRoles(claims: Record<string, unknown>): string[] {
+  const realmAccess = claims.realm_access as { roles?: unknown } | undefined;
+  const roles = Array.isArray(realmAccess?.roles) ? realmAccess.roles : [];
+  return roles.filter((r): r is string => typeof r === "string").filter(isAppRealmRole);
+}
+
+/**
+ * Map the token claims into the principal we persist in the session. Identity and
+ * the `organizations` claim come from the verified ID token; realm roles come from
+ * the access token's `realm_access.roles` (the ID token doesn't carry them).
+ * Defensive about claim shapes — a malformed entry degrades to empty rather than
+ * throwing inside the callback.
+ */
+export function mapClaimsToUser(
+  idClaims: Record<string, unknown>,
+  accessClaims: Record<string, unknown>,
+): SessionUser {
+  const orgs = (idClaims.organizations ?? {}) as OrgClaim;
   const organizations: OrgMemberships = {};
   for (const [orgId, value] of Object.entries(orgs)) {
     organizations[orgId] = {
@@ -66,15 +90,16 @@ export function mapClaimsToUser(claims: Record<string, unknown>): SessionUser {
     };
   }
   const name =
-    typeof claims.name === "string"
-      ? claims.name
-      : typeof claims.preferred_username === "string"
-        ? claims.preferred_username
+    typeof idClaims.name === "string"
+      ? idClaims.name
+      : typeof idClaims.preferred_username === "string"
+        ? idClaims.preferred_username
         : undefined;
   return {
-    sub: String(claims.sub),
-    email: typeof claims.email === "string" ? claims.email : undefined,
+    sub: String(idClaims.sub),
+    email: typeof idClaims.email === "string" ? idClaims.email : undefined,
     name,
+    realmRoles: extractRealmRoles(accessClaims),
     organizations,
   };
 }

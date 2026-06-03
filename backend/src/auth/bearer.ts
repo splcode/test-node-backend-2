@@ -1,6 +1,6 @@
 import * as jose from "jose";
 import type { Request, Response, NextFunction } from "express";
-import { getOidcConfig } from "./oidc.js";
+import { getOidcConfig, extractRealmRoles } from "./oidc.js";
 
 const issuer = process.env.OIDC_ISSUER;
 const audience = process.env.OIDC_AUDIENCE ?? "app-api";
@@ -17,6 +17,8 @@ export interface BearerPrincipal {
   clientId?: string;
   /** OAuth scopes granted on the token. */
   scopes: string[];
+  /** Realm roles from `realm_access.roles` (app roles only; built-ins filtered). */
+  realmRoles: string[];
   /** The full verified JWT payload, for anything else a handler needs. */
   claims: jose.JWTPayload;
 }
@@ -57,6 +59,7 @@ export async function verifyBearer(token: string): Promise<BearerPrincipal> {
           ? payload.client_id
           : undefined,
     scopes: typeof payload.scope === "string" ? payload.scope.split(" ") : [],
+    realmRoles: extractRealmRoles(payload as Record<string, unknown>),
     claims: payload,
   };
 }

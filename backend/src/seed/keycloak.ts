@@ -10,10 +10,13 @@
  *     resource-server (jose) audience check has something to verify
  *   - client `web-bff` — confidential, auth-code + PKCE, the browser BFF
  *   - client `api-m2m` — confidential, service account, for client-credentials
- *   - realm roles `app-admin`, `app-user`
- *   - user `demo` / `demo`, member of two orgs with different roles:
- *       acme   → manage-organization, manage-members, billing-admin (org admin)
- *       globex → view-organization, view-members                   (read-only)
+ *   - realm role `app-admin` — the only realm role; being authenticated already
+ *     means you're a user. It rides for free in the standard `realm_access.roles`
+ *     (Keycloak's default `roles` scope), no custom mapper. Both `demo` and the
+ *     api-m2m service account hold it, so their tokens carry a realm role.
+ *   - each org has roles `admin` and `manager` (plain members need no role)
+ *   - user `demo` / `demo`: realm `app-admin`, and a different org role in each:
+ *     acme → admin, globex → manager
  *
  * Run:  npm run seed:keycloak -w backend   (Keycloak must be up first)
  */
@@ -22,6 +25,11 @@ const BASE = process.env.KC_BASE_URL ?? "http://localhost:8082";
 const ADMIN_USER = process.env.KC_ADMIN_USER ?? "admin";
 const ADMIN_PASS = process.env.KC_ADMIN_PASS ?? "admin";
 const REALM = process.env.SEED_REALM ?? "app";
+// For a hosted realm where you don't have the master admin: a confidential client
+// in the target realm with realm-management roles (realm-admin). When these are
+// set, the seeder authenticates via client-credentials instead of admin-cli.
+const ADMIN_CLIENT_ID = process.env.KC_ADMIN_CLIENT_ID;
+const ADMIN_CLIENT_SECRET = process.env.KC_ADMIN_CLIENT_SECRET;
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 // Vite dev server origin. In dev the browser stays on :5173 (Vite proxies /api
@@ -38,11 +46,14 @@ const DEMO_USER = "demo";
 const DEMO_PASS = "demo";
 const DEMO_EMAIL = "demo@example.com";
 
-// Phase Two creates a default set of org roles per org; we also add a custom one
-// (billing-admin) to show custom roles. grantOrgRole() create-or-ignores first,
-// so this works whether or not the default roles already exist.
-const ACME_ROLES = ["manage-organization", "manage-members", "billing-admin"];
-const GLOBEX_ROLES = ["view-organization", "view-members"];
+// Each org carries the same two elevated roles: `admin` and `manager`. Plain
+// membership needs no role — a member is implicitly a user. The demo user is
+// admin of one org and manager of the other.
+const ORG_ROLES = ["admin", "manager"] as const;
+const DEMO_ORG_ROLE: Record<string, (typeof ORG_ROLES)[number]> = {
+  acme: "admin",
+  globex: "manager",
+};
 
 let TOKEN = "";
 
@@ -51,19 +62,23 @@ function log(msg: string): void {
 }
 
 async function getAdminToken(): Promise<string> {
-  const res = await fetch(`${BASE}/realms/master/protocol/openid-connect/token`, {
+  // Hosted realm: client-credentials on a realm-management client in the target
+  // realm. Local dev: password grant on the master realm's admin-cli.
+  const useClient = Boolean(ADMIN_CLIENT_ID && ADMIN_CLIENT_SECRET);
+  const tokenUrl = useClient
+    ? `${BASE}/realms/${REALM}/protocol/openid-connect/token`
+    : `${BASE}/realms/master/protocol/openid-connect/token`;
+  const body: Record<string, string> = useClient
+    ? { grant_type: "client_credentials", client_id: ADMIN_CLIENT_ID!, client_secret: ADMIN_CLIENT_SECRET! }
+    : { grant_type: "password", client_id: "admin-cli", username: ADMIN_USER, password: ADMIN_PASS };
+  const res = await fetch(tokenUrl, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "password",
-      client_id: "admin-cli",
-      username: ADMIN_USER,
-      password: ADMIN_PASS,
-    }),
+    body: new URLSearchParams(body),
   });
   if (!res.ok) {
     throw new Error(`admin login failed: ${res.status} ${await res.text()}\n` +
-      `Is Keycloak up at ${BASE}? Try: docker compose up -d keycloak`);
+      `Is Keycloak reachable at ${BASE}?`);
   }
   const json = (await res.json()) as { access_token: string };
   return json.access_token;
@@ -180,6 +195,11 @@ const audienceMapper: Mapper = {
   },
 };
 
+// Note: realm roles need no mapper here — Keycloak's default `roles` scope already
+// puts them in every access token under the standard `realm_access.roles`. The BFF
+// reads them from the access token (see auth/oidc.ts), same as a Spring resource
+// server would. The ID token deliberately does NOT carry them.
+
 // --- Clients ----------------------------------------------------------------
 
 async function ensureClient(rep: Record<string, unknown>): Promise<string> {
@@ -258,6 +278,14 @@ async function assignRealmRole(userId: string, roleName: string): Promise<void> 
     ]),
     [409],
   );
+}
+
+/** The user id of a service-account client, so we can grant it realm roles. */
+async function serviceAccountUserId(clientInternalId: string): Promise<string> {
+  const user = await json<{ id: string }>(
+    await req("GET", `/admin/realms/${REALM}/clients/${clientInternalId}/service-account-user`),
+  );
+  return user.id;
 }
 
 // --- Phase Two organizations ------------------------------------------------
@@ -371,20 +399,26 @@ async function main(): Promise<void> {
   });
   await assignDefaultScope(m2mId, apiScopeId);
 
+  // Only one realm role: `app-admin`. Both the demo user and the m2m service
+  // account hold it, so each token carries realm_access.roles.
   await ensureRealmRole("app-admin");
-  await ensureRealmRole("app-user");
+  await assignRealmRole(await serviceAccountUserId(m2mId), "app-admin");
 
   const userId = await ensureUser();
-  await assignRealmRole(userId, "app-user");
+  await assignRealmRole(userId, "app-admin");
 
   const acme = await ensureOrg("acme", "Acme Inc", ["acme.example.com"]);
   const globex = await ensureOrg("globex", "Globex LLC", ["globex.example.com"]);
 
   await addOrgMember(acme, userId);
   await addOrgMember(globex, userId);
-  for (const role of ACME_ROLES) await grantOrgRole(acme, role, userId);
-  for (const role of GLOBEX_ROLES) await grantOrgRole(globex, role, userId);
-  log(`memberships: demo → acme [${ACME_ROLES.join(", ")}], globex [${GLOBEX_ROLES.join(", ")}]`);
+
+  // Define both roles on each org, then grant the demo user their one role per org.
+  for (const [name, orgId] of [["acme", acme], ["globex", globex]] as const) {
+    for (const role of ORG_ROLES) await ensureOrgRole(orgId, role);
+    await grantOrgRole(orgId, DEMO_ORG_ROLE[name], userId);
+  }
+  log(`memberships: demo → acme [${DEMO_ORG_ROLE.acme}], globex [${DEMO_ORG_ROLE.globex}]`);
 
   const webSecret = await getClientSecret(webId);
   log(`\nVerifying API client-credentials leg:`);
@@ -404,11 +438,13 @@ async function main(): Promise<void> {
  API client (client-credentials):            ${M2M_CLIENT_ID} / ${M2M_CLIENT_SECRET}
  Admin console:                              ${BASE}  (${ADMIN_USER}/${ADMIN_PASS})
 
- On login, demo's ID/access token will carry:
+ demo's ID token carries identity + the "organizations" claim:
    "organizations": {
-     "<acme-id>":   { "name": "acme",   "roles": ["manage-organization","manage-members","billing-admin"] },
-     "<globex-id>": { "name": "globex", "roles": ["view-organization","view-members"] }
+     "<acme-id>":   { "name": "acme",   "roles": ["admin"] },
+     "<globex-id>": { "name": "globex", "roles": ["manager"] }
    }
+ demo's ACCESS token additionally carries realm roles (free, standard claim):
+   "realm_access": { "roles": ["app-admin", ...] }
 ─────────────────────────────────────────────────────────────`);
 }
 
