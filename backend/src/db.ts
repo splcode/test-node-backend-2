@@ -15,8 +15,6 @@ export interface Database {
   };
 }
 
-// Exported so the session store (connect-pg-simple) shares this one pool rather
-// than opening a second set of connections to the same database.
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 export const db = new Kysely<Database>({
