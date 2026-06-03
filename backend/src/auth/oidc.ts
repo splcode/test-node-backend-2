@@ -1,4 +1,5 @@
 import * as client from "openid-client";
+import * as jose from "jose";
 import type { SessionUser, OrgMemberships } from "../contracts.js";
 
 function requireEnv(name: string): string {
@@ -44,6 +45,21 @@ export function getOidcConfig(): Promise<client.Configuration> {
     allowInsecure ? { execute: [client.allowInsecureRequests] } : undefined,
   );
   return configPromise;
+}
+
+// Remote JWK Set built lazily from the discovered jwks_uri. jose fetches and
+// caches the keys and handles key rotation / cooldown internally. Shared by every
+// path that verifies a Keycloak-signed JWT (bearer access tokens, logout tokens).
+let jwks: ReturnType<typeof jose.createRemoteJWKSet> | undefined;
+export async function getJwks(): Promise<ReturnType<typeof jose.createRemoteJWKSet>> {
+  if (!jwks) {
+    const jwksUri = (await getOidcConfig()).serverMetadata().jwks_uri;
+    if (!jwksUri) {
+      throw new Error("Authorization server metadata has no jwks_uri.");
+    }
+    jwks = jose.createRemoteJWKSet(new URL(jwksUri));
+  }
+  return jwks;
 }
 
 /** Shape of Keycloak's `organizations` token claim (per-org name + roles). */

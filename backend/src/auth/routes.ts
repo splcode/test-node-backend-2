@@ -96,6 +96,9 @@ authRouter.get("/callback", async (req, res, next) => {
     const accessClaims = decodeJwt(tokens.access_token);
     const user = mapClaimsToUser(claims as Record<string, unknown>, accessClaims as Record<string, unknown>);
     const idToken = tokens.id_token;
+    // Keycloak's SSO session id; the back-channel logout token carries the same
+    // `sid`, so persisting it lets an external logout find and kill this session.
+    const kcSid = typeof claims.sid === "string" ? claims.sid : undefined;
     const returnTo = safeReturnTo(tx.returnTo);
 
     // Rotate the session id on privilege change to defeat session fixation. This
@@ -103,6 +106,7 @@ authRouter.get("/callback", async (req, res, next) => {
     await regenerate(req);
     req.session.user = user;
     req.session.idToken = idToken;
+    req.session.kcSid = kcSid;
     await save(req);
 
     res.redirect(returnTo);

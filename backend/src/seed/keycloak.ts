@@ -38,6 +38,24 @@ const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 // and /auth to Express), so the OIDC redirect lands here too — register it as a
 // valid callback/origin alongside the Express origin.
 const DEV_WEB_URL = process.env.DEV_WEB_URL ?? "http://localhost:5173";
+
+/**
+ * Where Keycloak POSTs the back-channel logout token. Unlike the redirect/origin
+ * URLs (which the browser uses), this is called by Keycloak's *server*, so it must
+ * be reachable from there. In dev Keycloak runs in Docker and the BFF on the host,
+ * so `localhost` would resolve to the container — rewrite it to the Docker Desktop
+ * host alias. In prod APP_URL is the public origin Keycloak already reaches.
+ * Override wholesale with KC_BACKCHANNEL_URL for anything unusual.
+ */
+function backchannelLogoutUrl(): string {
+  if (process.env.KC_BACKCHANNEL_URL) return process.env.KC_BACKCHANNEL_URL;
+  const u = new URL(APP_URL);
+  if (u.hostname === "localhost" || u.hostname === "127.0.0.1") {
+    u.hostname = "host.docker.internal";
+  }
+  return new URL("/auth/backchannel-logout", u).href;
+}
+
 const WEB_CLIENT_ID = "web-bff";
 const WEB_CLIENT_SECRET = process.env.OIDC_CLIENT_SECRET ?? "dev-secret-change-me";
 const M2M_CLIENT_ID = "api-m2m";
@@ -384,10 +402,17 @@ async function main(): Promise<void> {
       "pkce.code.challenge.method": "S256",
       // Keycloak separates multiple post-logout URIs with `##`.
       "post.logout.redirect.uris": `${APP_URL}/*##${DEV_WEB_URL}/*`,
+      // Back-channel logout: Keycloak POSTs a logout token to this URL when the
+      // SSO session ends, so an external logout tears down the BFF session too.
+      // session.required=true makes the token carry `sid` (we match on it).
+      "backchannel.logout.url": backchannelLogoutUrl(),
+      "backchannel.logout.session.required": "true",
+      "backchannel.logout.revoke.offline.tokens": "false",
     },
   });
   await assignDefaultScope(webId, orgScopeId);
   await assignDefaultScope(webId, apiScopeId);
+  log(`  backchannel logout url: ${backchannelLogoutUrl()}`);
 
   const m2mId = await ensureClient({
     clientId: M2M_CLIENT_ID,

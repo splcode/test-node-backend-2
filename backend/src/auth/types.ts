@@ -23,6 +23,12 @@ declare module "express-session" {
      * servers on the user's behalf yet; add them here when it needs to.
      */
     idToken?: string;
+    /**
+     * Keycloak SSO session id (the ID token's `sid` claim). Lets a back-channel
+     * logout token — which carries the same `sid` — be matched back to this row
+     * so an external logout can destroy exactly this session. See auth/backchannel.ts.
+     */
+    kcSid?: string;
     /** Double-submit CSRF token; mirrored to the readable XSRF-TOKEN cookie. */
     csrfToken?: string;
   }

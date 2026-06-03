@@ -3,6 +3,7 @@ import express from "express";
 import { db, migrateToLatest } from "./db.js";
 import { sessionMiddleware } from "./auth/session.js";
 import { authRouter } from "./auth/routes.js";
+import { backchannelLogout } from "./auth/backchannel.js";
 import { requireSessionOrBearer } from "./auth/bearer.js";
 import { issueCsrfToken, requireCsrf } from "./auth/csrf.js";
 import { mapClaimsToUser } from "./auth/oidc.js";
@@ -17,6 +18,12 @@ const app = express();
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", 1);
 }
+
+// OIDC Back-Channel Logout: Keycloak POSTs a signed logout_token here (server to
+// server, x-www-form-urlencoded) when an SSO session ends elsewhere. It carries no
+// session cookie or XSRF token, so it's mounted ahead of the session + CSRF
+// middleware with its own body parser, and validates the token itself.
+app.post("/auth/backchannel-logout", express.urlencoded({ extended: false }), backchannelLogout);
 
 // Sessions back the browser (BFF) auth. Mounted only on the dynamic routes so
 // static asset requests never touch the session machinery or the store.

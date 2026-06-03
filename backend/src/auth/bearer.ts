@@ -1,6 +1,6 @@
 import * as jose from "jose";
 import type { Request, Response, NextFunction } from "express";
-import { getOidcConfig, extractRealmRoles } from "./oidc.js";
+import { getJwks, extractRealmRoles } from "./oidc.js";
 
 const issuer = process.env.OIDC_ISSUER;
 const audience = process.env.OIDC_AUDIENCE ?? "app-api";
@@ -31,20 +31,6 @@ declare global {
       bearer?: BearerPrincipal;
     }
   }
-}
-
-// Build the remote JWK Set lazily from the discovered jwks_uri. jose fetches and
-// caches the keys and handles key rotation / cooldown internally.
-let jwks: ReturnType<typeof jose.createRemoteJWKSet> | undefined;
-async function getJwks(): Promise<ReturnType<typeof jose.createRemoteJWKSet>> {
-  if (!jwks) {
-    const jwksUri = (await getOidcConfig()).serverMetadata().jwks_uri;
-    if (!jwksUri) {
-      throw new Error("Authorization server metadata has no jwks_uri.");
-    }
-    jwks = jose.createRemoteJWKSet(new URL(jwksUri));
-  }
-  return jwks;
 }
 
 /** Verify a bearer access token's signature, issuer and audience. Throws on failure. */
