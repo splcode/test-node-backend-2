@@ -4,7 +4,8 @@ import { db, migrateToLatest } from "./db.js";
 import { sessionMiddleware } from "./auth/session.js";
 import { authRouter } from "./auth/routes.js";
 import { requireSession } from "./auth/guards.js";
-import type { SampleListResponse } from "./contracts.js";
+import { issueCsrfToken, requireCsrf } from "./auth/csrf.js";
+import type { SampleListResponse, MeResponse } from "./contracts.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
@@ -20,6 +21,11 @@ if (process.env.NODE_ENV === "production") {
 // static asset requests never touch the session machinery or the store.
 app.use(["/api", "/auth"], sessionMiddleware);
 
+// Double-submit CSRF: hand the client a readable XSRF-TOKEN cookie, then require
+// a matching X-XSRF-TOKEN header on every state-changing request.
+app.use(["/api", "/auth"], issueCsrfToken);
+app.use(["/api", "/auth"], requireCsrf);
+
 // Browser auth: /auth/login, /auth/callback, POST /auth/logout.
 app.use("/auth", authRouter);
 
@@ -32,7 +38,8 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/v1", requireSession);
 
 app.get("/api/v1/me", (req, res) => {
-  res.json({ user: req.session.user });
+  const body: MeResponse = { user: req.session.user ?? null };
+  res.json(body);
 });
 
 app.get("/api/v1/sample", async (_req, res) => {

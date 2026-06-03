@@ -36,8 +36,9 @@ npm run dev:api            # Express on http://localhost:3000
 npm run dev:web            # Vite on http://localhost:5173 (separate terminal)
 ```
 
-Open http://localhost:5173 — Vite proxies `/api/*` to Express. The app creates
-and seeds the `sample` table on first boot.
+Open http://localhost:5173 — Vite proxies `/api/*` and `/auth/*` to Express. The
+app creates and seeds the `sample` table on first boot. The samples are behind
+auth now, so click **Log in** and sign in as `demo` / `demo` (see below).
 
 ## Authentication (dev)
 
@@ -71,6 +72,20 @@ Once seeded, the server exposes the browser login flow:
   end-session URL for the SPA to navigate to (POST-only, so no cross-site GET)
 - `GET /api/v1/me` → the current session user; everything under `/api/v1` now
   requires a session
+
+The frontend drives this: it calls `/api/v1/me`, shows a **Log in** button when
+logged out and the user + their org roles + a **Log out** button when signed in.
+In dev the browser stays on the Vite origin (`:5173`) the whole time — Vite
+proxies `/auth/*` to Express and the seeded `web-bff` client allows the `:5173`
+callback, so the cookie-based flow works with HMR. (`OIDC_REDIRECT_URI` selects
+the origin; switch it to `:3000` to run the built SPA from Express single-origin.)
+
+CSRF: a double-submit token, the Angular/Axios/Spring convention. The server
+hands the browser a readable `XSRF-TOKEN` cookie; the `ApiClient` echoes it back
+in an `X-XSRF-TOKEN` header on every mutation, and the server verifies it against
+the token stored in the **session** (not just the cookie) — so it holds even if
+an attacker can overwrite the cookie from a sibling subdomain. `SameSite=Lax` is
+the first line of defense; this is the second.
 
 Browsers reach Keycloak over plain `http` in dev, which openid-client normally
 forbids; the http-only relaxation is applied **only** when `OIDC_ISSUER` is

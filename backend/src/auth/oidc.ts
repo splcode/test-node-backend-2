@@ -1,5 +1,5 @@
 import * as client from "openid-client";
-import type { SessionUser, OrgMemberships } from "./types.js";
+import type { SessionUser, OrgMemberships } from "../contracts.js";
 
 function requireEnv(name: string): string {
   const value = process.env[name];

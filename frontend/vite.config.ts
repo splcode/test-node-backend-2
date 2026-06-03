@@ -12,9 +12,13 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    // In dev, proxy API calls to the Express server so there is no CORS.
+    // In dev, proxy API + auth calls to Express so the browser stays on one
+    // origin (:5173) — needed for the cookie-based BFF login to work with HMR.
+    // changeOrigin stays false so Express sees Host: localhost:5173 and builds
+    // the right redirect_uri / cookie scope.
     proxy: {
       "/api": "http://localhost:3000",
+      "/auth": "http://localhost:3000",
     },
   },
   build: {

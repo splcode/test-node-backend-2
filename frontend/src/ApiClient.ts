@@ -26,6 +26,19 @@ export interface ApiClientOptions {
   defaultHeaders?: MaybeAsync<Record<string, string>>;
   /** Merged into every request's query/body. */
   defaultRequestData?: RequestData;
+  /**
+   * Called when a response is 401, just before the ApiError is thrown — e.g. to
+   * redirect to login. Settable on the instance so callers can enable it only
+   * once they expect to be authenticated (avoids redirecting on a probe).
+   */
+  onUnauthorized?: (response: Response) => void;
+  /**
+   * Double-submit CSRF (Axios/Angular-style): read this cookie and echo its
+   * value in `xsrfHeaderName` on state-changing requests. Omit to disable.
+   */
+  xsrfCookieName?: string;
+  /** Header for the CSRF token; defaults to `X-XSRF-TOKEN`. */
+  xsrfHeaderName?: string;
 }
 
 interface ApiClientEventMap {
@@ -61,6 +74,22 @@ async function resolveMaybe<T>(value: MaybeAsync<T>): Promise<T> {
     : value;
 }
 
+/** Read a cookie value from document.cookie, or undefined if absent. */
+function readCookie(name: string): string | undefined {
+  const prefix = `${name}=`;
+  for (const part of document.cookie.split(";")) {
+    const trimmed = part.trim();
+    if (trimmed.startsWith(prefix)) {
+      return decodeURIComponent(trimmed.slice(prefix.length));
+    }
+  }
+  return undefined;
+}
+
+// Methods that don't mutate state — no CSRF token needed. (The client never
+// issues OPTIONS, so it's not in the HttpMethod union.)
+const SAFE_METHODS = new Set<HttpMethod>(["GET", "HEAD"]);
+
 /** Best-effort read of an error response body, for `ApiError.body`. */
 async function readBodySafely(res: Response): Promise<unknown> {
   try {
@@ -93,12 +122,18 @@ export default class ApiClient extends EventTarget {
   baseUrl: MaybeAsync<string>;
   defaultHeaders: MaybeAsync<Record<string, string>>;
   defaultRequestData: RequestData;
+  onUnauthorized?: (response: Response) => void;
+  xsrfCookieName?: string;
+  xsrfHeaderName: string;
 
   constructor(options: ApiClientOptions = {}) {
     super();
     this.baseUrl = options.baseUrl ?? "";
     this.defaultHeaders = options.defaultHeaders ?? {};
     this.defaultRequestData = options.defaultRequestData ?? {};
+    this.onUnauthorized = options.onUnauthorized;
+    this.xsrfCookieName = options.xsrfCookieName;
+    this.xsrfHeaderName = options.xsrfHeaderName ?? "X-XSRF-TOKEN";
   }
 
   // Typed event subscription; the string overload mirrors the EventTarget base.
@@ -153,6 +188,13 @@ export default class ApiClient extends EventTarget {
       Accept: "application/json",
       ...(await resolveMaybe(this.defaultHeaders)),
     };
+
+    // Double-submit CSRF token on state-changing requests (Axios/Angular-style).
+    if (this.xsrfCookieName && !SAFE_METHODS.has(method)) {
+      const token = readCookie(this.xsrfCookieName);
+      if (token) headers[this.xsrfHeaderName] = token;
+    }
+
     const init: RequestInit = { method, headers };
 
     if (Object.keys(requestData).length > 0) {
@@ -183,6 +225,7 @@ export default class ApiClient extends EventTarget {
 
     if (!res.ok) {
       this.dispatchEvent(new CustomEvent("notokresponse", { detail: res }));
+      if (res.status === 401) this.onUnauthorized?.(res);
       throw new ApiError(res, await readBodySafely(res));
     }
 

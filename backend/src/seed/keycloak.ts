@@ -24,6 +24,10 @@ const ADMIN_PASS = process.env.KC_ADMIN_PASS ?? "admin";
 const REALM = process.env.SEED_REALM ?? "app";
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
+// Vite dev server origin. In dev the browser stays on :5173 (Vite proxies /api
+// and /auth to Express), so the OIDC redirect lands here too — register it as a
+// valid callback/origin alongside the Express origin.
+const DEV_WEB_URL = process.env.DEV_WEB_URL ?? "http://localhost:5173";
 const WEB_CLIENT_ID = "web-bff";
 const WEB_CLIENT_SECRET = process.env.OIDC_CLIENT_SECRET ?? "dev-secret-change-me";
 const M2M_CLIENT_ID = "api-m2m";
@@ -342,11 +346,12 @@ async function main(): Promise<void> {
     standardFlowEnabled: true,
     directAccessGrantsEnabled: false,
     serviceAccountsEnabled: false,
-    redirectUris: [`${APP_URL}/auth/callback`],
-    webOrigins: [APP_URL],
+    redirectUris: [`${APP_URL}/auth/callback`, `${DEV_WEB_URL}/auth/callback`],
+    webOrigins: [APP_URL, DEV_WEB_URL],
     attributes: {
       "pkce.code.challenge.method": "S256",
-      "post.logout.redirect.uris": `${APP_URL}/*`,
+      // Keycloak separates multiple post-logout URIs with `##`.
+      "post.logout.redirect.uris": `${APP_URL}/*##${DEV_WEB_URL}/*`,
     },
   });
   await assignDefaultScope(webId, orgScopeId);

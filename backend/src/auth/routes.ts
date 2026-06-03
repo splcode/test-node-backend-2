@@ -68,7 +68,14 @@ authRouter.get("/callback", async (req, res, next) => {
       return;
     }
     const config = await getOidcConfig();
-    const currentUrl = new URL(`${req.protocol}://${req.get("host")}${req.originalUrl}`);
+    // Build the callback URL from the *registered* redirect_uri plus the incoming
+    // query (code/state/iss). Don't derive the origin from req.get("host"): behind
+    // the Vite proxy (or any proxy) the Host can differ from the redirect_uri the
+    // auth request used, and openid-client sends currentUrl's origin+path as the
+    // token-exchange redirect_uri — a mismatch makes Keycloak reject the exchange.
+    const queryIndex = req.originalUrl.indexOf("?");
+    const currentUrl = new URL(REDIRECT_URI);
+    if (queryIndex !== -1) currentUrl.search = req.originalUrl.slice(queryIndex);
 
     const tokens = await client.authorizationCodeGrant(config, currentUrl, {
       pkceCodeVerifier: tx.codeVerifier,

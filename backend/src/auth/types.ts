@@ -1,24 +1,12 @@
 // Augments express-session's SessionData with our app-specific fields. This file
-// has no runtime output beyond the interfaces; the `declare module` block makes
-// `req.session.user` / `req.session.oidc` typed everywhere across the codebase.
-
-/** Per-org roles keyed by Keycloak organization id — mirrors the `organizations` token claim. */
-export interface OrgMemberships {
-  [orgId: string]: { name: string; roles: string[] };
-}
-
-/** The authenticated principal persisted in the session after OIDC login (step 2 fills this). */
-export interface SessionUser {
-  sub: string;
-  email?: string;
-  name?: string;
-  /**
-   * All org memberships carried from the token. We keep the full map (rather than
-   * pinning one active org) so per-request authorization can resolve against any
-   * org; an `activeOrgId` + switch endpoint can be layered on later if needed.
-   */
-  organizations: OrgMemberships;
-}
+// has no runtime output; the `declare module` block makes `req.session.user` /
+// `req.session.oidc` typed everywhere across the codebase. The user/org shapes
+// live in contracts.ts so the frontend shares one definition.
+//
+// We keep the full org-membership map (rather than pinning one active org) so
+// per-request authorization can resolve against any org; an `activeOrgId` +
+// switch endpoint can be layered on later if needed.
+import type { SessionUser } from "../contracts.js";
 
 declare module "express-session" {
   interface SessionData {
@@ -35,5 +23,7 @@ declare module "express-session" {
      * servers on the user's behalf yet; add them here when it needs to.
      */
     idToken?: string;
+    /** Double-submit CSRF token; mirrored to the readable XSRF-TOKEN cookie. */
+    csrfToken?: string;
   }
 }
