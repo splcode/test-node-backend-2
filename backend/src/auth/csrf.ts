@@ -2,17 +2,6 @@ import crypto from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
 import { hasBearer } from "./bearer.js";
 
-/**
- * Double-submit CSRF, the Angular/Axios/Spring-style convention: a readable
- * `XSRF-TOKEN` cookie carries a token the client echoes back in the
- * `X-XSRF-TOKEN` header on every state-changing request.
- *
- * This is the *session-backed* variant: the token's source of truth is the
- * server-side session, and `requireCsrf` compares the header to the session
- * value (not to the cookie). So even an attacker who can overwrite the cookie
- * (e.g. from a sibling subdomain) can't forge a request — they'd need the token
- * value held in the session, which they can't read. The cookie is just transport.
- */
 export const CSRF_COOKIE = "XSRF-TOKEN";
 export const CSRF_HEADER = "x-xsrf-token";
 

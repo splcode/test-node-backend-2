@@ -201,8 +201,8 @@ const audienceMapper: Mapper = {
 
 // Note: realm roles need no mapper here — Keycloak's default `roles` scope already
 // puts them in every access token under the standard `realm_access.roles`. The BFF
-// reads them from the access token (see auth/oidc.ts), same as a Spring resource
-// server would. The ID token deliberately does NOT carry them.
+// reads them from the access token (see auth/oidc.ts). The ID token deliberately 
+// does NOT carry them.
 
 // --- Clients ----------------------------------------------------------------
 

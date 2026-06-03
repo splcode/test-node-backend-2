@@ -60,9 +60,8 @@ function isAppRealmRole(role: string): boolean {
 
 /**
  * Pull realm roles out of the standard `realm_access.roles` claim (filtered to
- * our app's roles). This lives in the ACCESS token, not the ID token — same place
- * a Keycloak-aware Spring resource server reads them. Shared by the session and
- * bearer paths so both surface realm roles identically.
+ * our app's roles). This lives in the ACCESS token, not the ID token Shared by 
+ * the session and bearer paths so both surface realm roles identically.
  */
 export function extractRealmRoles(claims: Record<string, unknown>): string[] {
   const realmAccess = claims.realm_access as { roles?: unknown } | undefined;

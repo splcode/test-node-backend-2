@@ -1,14 +1,18 @@
 # express-vite-sample
 
-A minimal TypeScript sample: an Express API and a Vite frontend served from a
-single Node process, backed by Postgres.
+A minimal TypeScript sample with mark pizzaz: an Express API and a Vite frontend 
+served from a single Node process, backed by Postgres.
+
+This can be the future basis of the next project future Mark writes - right?
 
 - **Backend** — Node + Express + TypeScript. Serves the JSON API and the built
   frontend on one port.
 - **Frontend** — vanilla TypeScript + Vite + [Pico.css](https://picocss.com/).
-  Fetches `/api/v1/sample` and renders the list.
+  Fetches `/api/v1/sample` and renders the list. Pico just for a pretty demo.
 - **Database** — Postgres, queried with [Kysely](https://kysely.dev/). Plain-SQL
   migrations run automatically on startup.
+
+Dependencies are chosen deliberately to be those with low dependencies themselves.
 
 ## Layout
 
@@ -59,8 +63,7 @@ idempotent and prints the exact `.env` values to use. It provisions:
 - `web-bff` — confidential client, authorization-code + PKCE (browser login)
 - `api-m2m` — confidential client, client-credentials (machine API clients);
   its service account holds the `app-admin` realm role
-- `dev-tools` — **public** client (no secret), authorization-code + PKCE, for
-  hand-testing tokens from Postman / Insomnia / curl
+- `dev-tools` — **public** client (no secret), authorization-code + PKCE
 - client scopes that add an `organizations` claim (per-org roles) and stamp the
   API `aud` onto access tokens
 - realm role `app-admin` (the only one — being authenticated already means
@@ -73,7 +76,7 @@ Two role dimensions flow into the app, each from its native place in the token:
 **realm roles** ride the standard `realm_access.roles` (access token only —
 Keycloak's default `roles` scope, no custom mapper). The BFF reads realm roles
 off the access token it holds; a bearer client gets them straight from its
-verified token — the same claim a Spring resource server reads.
+verified token.
 
 Once seeded, the server exposes the browser login flow:
 
@@ -95,17 +98,18 @@ for how to obtain a token or use the session.
 The frontend drives the browser side: it calls `/api/v1/me`, shows a **Log in**
 button when logged out and the user + their org roles + a **Log out** button when
 signed in.
+
 In dev the browser stays on the Vite origin (`:5173`) the whole time — Vite
 proxies `/auth/*` to Express and the seeded `web-bff` client allows the `:5173`
 callback, so the cookie-based flow works with HMR. (`OIDC_REDIRECT_URI` selects
 the origin; switch it to `:3000` to run the built SPA from Express single-origin.)
 
-CSRF: a double-submit token, the Angular/Axios/Spring convention. The server
-hands the browser a readable `XSRF-TOKEN` cookie; the `ApiClient` echoes it back
-in an `X-XSRF-TOKEN` header on every mutation, and the server verifies it against
-the token stored in the **session** (not just the cookie) — so it holds even if
-an attacker can overwrite the cookie from a sibling subdomain. `SameSite=Lax` is
-the first line of defense; this is the second.
+CSRF: a double-submit token. The server hands the browser a readable `XSRF-TOKEN` 
+cookie; the `ApiClient` echoes it back in an `X-XSRF-TOKEN` header on every 
+mutation, and the server verifies it against the token stored in the **session** 
+(not just the cookie) - so it holds even if an attacker can overwrite the cookie
+from a sibling subdomain. `SameSite=Lax` is the first line of defense; this is
+the second.
 
 Browsers reach Keycloak over plain `http` in dev, which openid-client normally
 forbids; the http-only relaxation is applied **only** when `OIDC_ISSUER` is
@@ -117,18 +121,18 @@ production points at a hosted Phase Two via `KEYCLOAK_VERSION` / `OIDC_*` env.
 ## Getting in: a token (Postman / Insomnia / curl) or the browser session
 
 Everything under `/api/v1/*` accepts **either** a browser session **or** a bearer
-token. Three ways to get there. The endpoints differ only by realm — use the row
+token. Three ways to get there. The endpoints differ only by realm - use the row
 that matches where you're testing:
 
-| | Local (`app` realm) | Hosted / prod (`spl-testing-1`) |
-| --- | --- | --- |
-| Issuer | `http://localhost:8082/realms/app` | `https://usw2.auth.ac/auth/realms/spl-testing-1` |
-| API base | `http://localhost:3000` | `https://node-test-2.splsetup.com` |
+|          | Local (`app` realm)                | Hosted / prod (`spl-testing-1`)                  |
+| -------- | ---------------------------------- | ------------------------------------------------ |
+| Issuer   | `http://localhost:8082/realms/app` | `https://usw2.auth.ac/auth/realms/spl-testing-1` |
+| API base | `http://localhost:3000`            | `https://node-test-2.splsetup.com`               |
 
 (`<issuer>/protocol/openid-connect/auth` and `…/token` are the OAuth endpoints;
 the seeded clients — `dev-tools`, `api-m2m`, `web-bff` — exist on both realms.)
 
-### Public client `dev-tools` — a user token, no secret (easiest for tools)
+### Public client `dev-tools` — a user token, no secret
 
 `dev-tools` is a **public** client: authorization-code + PKCE, **no client
 secret**. This is the simplest way to mint a real user token for API testing.
@@ -139,16 +143,17 @@ In the tool's OAuth 2.0 settings pick **Authorization Code (With PKCE)** and fil
 in (local realm shown — swap the issuer host for a hosted realm):
 
 | Field | Value |
-| --- | --- |
-| Auth URL | `http://localhost:8082/realms/app/protocol/openid-connect/auth` |
-| Access Token URL | `http://localhost:8082/realms/app/protocol/openid-connect/token` |
-| Client ID | `dev-tools` |
-| Client Secret | *(leave blank — public client)* |
-| Code Challenge Method | SHA-256 (PKCE) |
-| Scope | `openid profile email` |
-| Redirect URL | Postman → `https://oauth.pstmn.io/v1/callback` · Insomnia → `http://localhost:8080/callback` |
+| ---------------------- | ---------------------------------------------------------------------- |
+| Auth URL               | `http://localhost:8082/realms/app/protocol/openid-connect/auth`        |
+| Access Token URL       | `http://localhost:8082/realms/app/protocol/openid-connect/token`       |
+| Client ID              | `dev-tools`                                                            |
+| Client Secret          | *(leave blank — public client)*                                        |
+| Code Challenge Method  | SHA-256 (PKCE)                                                         |
+| Scope                  | `openid profile email`                                                 |
+| Redirect URL           | `https://oauth.pstmn.io/v1/callback` `http://localhost:8080/callback` or `http://localhost:3000/callback` |
 
 Run it, sign in as `demo` / `demo`, and the tool captures the **access token**.
+
 Send it as a bearer:
 
 ```http
@@ -156,7 +161,8 @@ GET http://localhost:3000/api/v1/sample
 Authorization: Bearer <access_token>
 ```
 
-No browser? `dev-tools` also allows the direct (password) grant for a one-liner:
+No browser? `dev-tools` also allows the direct (password) grant for a one-liner but
+this would not likely be allowed in prod due to 2FA requirements and such:
 
 ```bash
 # local
