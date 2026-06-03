@@ -17,10 +17,13 @@ backend/src/
   server.ts          Express API + static file serving + migrate-on-boot
   db.ts              Kysely instance, schema types, migrations
   contracts.ts       API types shared with the frontend (type-only)
-  migrations/        plain-SQL migrations
+  auth/session.ts    express-session, Postgres-backed (connect-pg-simple)
+  auth/types.ts      session shape augmentation (req.session.user)
+  migrations/        plain-SQL migrations (incl. the session table)
+  seed/keycloak.ts   idempotent seeder for the dev Keycloak realm
 frontend/            Vite + vanilla TS + Pico
 Dockerfile           multi-stage build -> slim runtime image
-docker-compose.yml   local Postgres for development
+docker-compose.yml   local Postgres + Phase Two Keycloak for development
 ```
 
 ## Local development
@@ -35,6 +38,32 @@ npm run dev:web            # Vite on http://localhost:5173 (separate terminal)
 
 Open http://localhost:5173 — Vite proxies `/api/*` to Express. The app creates
 and seeds the `sample` table on first boot.
+
+## Authentication (dev)
+
+Auth is OpenID Connect against a [Phase Two](https://phasetwo.io/) Keycloak
+(organizations support). The model is a **Backend-for-Frontend**: the browser
+gets an httpOnly session cookie, Express holds the tokens and talks to Keycloak
+as a confidential client; machine clients call the API with bearer JWTs
+validated by [`jose`](https://github.com/panva/jose).
+
+```bash
+docker compose up -d keycloak      # Keycloak on http://localhost:8082 (admin/admin)
+npm run seed:keycloak -w backend   # create the `app` realm, clients, demo data
+```
+
+The seeder ([`backend/src/seed/keycloak.ts`](backend/src/seed/keycloak.ts)) is
+idempotent and prints the exact `.env` values to use. It provisions:
+
+- `web-bff` — confidential client, authorization-code + PKCE (browser login)
+- `api-m2m` — confidential client, client-credentials (machine API clients)
+- client scopes that add an `organizations` claim (per-org roles) and stamp the
+  API `aud` onto access tokens
+- user **`demo` / `demo`**, a member of two orgs with different roles
+  (`acme`: org admin, `globex`: read-only)
+
+The dev Keycloak uses an embedded H2 database persisted in the `kcdata` volume;
+production points at a hosted Phase Two via `KEYCLOAK_VERSION` / `OIDC_*` env.
 
 ## Production build
 

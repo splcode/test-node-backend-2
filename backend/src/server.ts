@@ -1,11 +1,22 @@
 import path from "node:path";
 import express from "express";
 import { db, migrateToLatest } from "./db.js";
+import { sessionMiddleware } from "./auth/session.js";
 import type { SampleListResponse } from "./contracts.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
 const app = express();
+
+// Behind Coolify's TLS-terminating proxy in prod: trust the first hop so
+// `secure` cookies are sent and req.protocol reflects the original https.
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
+
+// Sessions back the browser (BFF) auth. Mounted only on the dynamic routes so
+// static asset requests never touch the session machinery or the store.
+app.use(["/api", "/auth"], sessionMiddleware);
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });

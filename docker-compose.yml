@@ -17,5 +17,33 @@ services:
       timeout: 5s
       retries: 5
 
+  # Phase Two Keycloak distribution — bundles the keycloak-orgs extension
+  # (organizations, org roles, memberships, invitations) on top of upstream
+  # Keycloak. Prod uses your hosted Phase Two; this is the dev IdP only.
+  keycloak:
+    # Pinned. Override to match your hosted Phase Two: KEYCLOAK_VERSION=... in .env
+    # Tags: quay.io/phasetwo/phasetwo-keycloak
+    image: quay.io/phasetwo/phasetwo-keycloak:${KEYCLOAK_VERSION:-26.6.2}
+    restart: unless-stopped
+    # start-dev uses an embedded H2 DB (persisted in the kcdata volume below) and
+    # disables the prod hostname/TLS strictness — fine for local only.
+    command: start-dev
+    environment:
+      # Keycloak 26+ bootstrap admin (superuser for the master realm console).
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # Don't phone home with realm/org/user counts from a dev box.
+      PHASETWO_ANALYTICS_DISABLED: "true"
+    ports:
+      # Admin console + OIDC issuer at http://localhost:8082
+      # (8080/8081 are taken by other local services on this machine)
+      - "8082:8080"
+    volumes:
+      - kcdata:/opt/keycloak/data
+      # Next step: drop a realm export here and append `--import-realm` to the
+      # command above for a reproducible, version-controlled dev realm.
+      # - ./keycloak/import:/opt/keycloak/data/import
+
 volumes:
   pgdata:
+  kcdata:

@@ -8,16 +8,21 @@
     "dev": "tsx watch --env-file-if-exists=../.env src/server.ts",
     "build": "rm -rf dist && tsc -p tsconfig.json && mkdir -p dist/migrations && cp src/migrations/*.sql dist/migrations/",
     "start": "node dist/server.js",
+    "seed:keycloak": "tsx --env-file-if-exists=../.env src/seed/keycloak.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "connect-pg-simple": "^10.0.0",
     "express": "^5.2.1",
+    "express-session": "^1.19.0",
     "kysely": "^0.29.2",
     "pg": "^8.21.0",
     "postgrator": "^8.0.0"
   },
   "devDependencies": {
+    "@types/connect-pg-simple": "^7.0.3",
     "@types/express": "^5.0.6",
+    "@types/express-session": "^1.19.0",
     "@types/node": "^25.9.1",
     "@types/pg": "^8.20.0",
     "tsx": "^4.22.4",
